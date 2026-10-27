@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智感云联 - 农业全生命周期管家</title>
+    <style>
+        :root {
+            --bg-dark: #070d19; --bg-sidebar: #0b1426; --bg-card: #111d35;
+            --text-main: #f1f5f9; --text-sub: #94a3b8;
+            --accent-green: #10b981; --accent-green-glow: rgba(16, 185, 129, 0.4);
+            --accent-blue: #3b82f6; --accent-red: #ef4444;
+            --border-color: rgba(255, 255, 255, 0.08);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; user-select: none; }
+        body { background-color: var(--bg-dark); color: var(--text-main); overflow: hidden; height: 100vh; display: flex; }
+
+        /* 左侧导航栏 */
+        .sidebar { width: 240px; background-color: var(--bg-sidebar); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; padding: 20px 0; z-index: 10; }
+        .logo { padding: 0 20px 30px; display: flex; align-items: center; font-size: 20px; font-weight: bold; color: #fff; letter-spacing: 1px; }
+        .logo span { font-size: 24px; margin-right: 10px; }
+        .menu-title { font-size: 12px; color: var(--text-sub); padding: 0 24px; margin-bottom: 10px; }
+        .menu-item { padding: 14px 24px; display: flex; align-items: center; cursor: pointer; color: var(--text-sub); transition: all 0.2s; font-size: 15px; position: relative; }
+        .menu-item:hover { color: #fff; background-color: rgba(255,255,255,0.03); }
+        .menu-item.active { background-color: rgba(16, 185, 129, 0.1); color: var(--accent-green); font-weight: bold; border-right: 3px solid var(--accent-green); }
+        .menu-item .icon { margin-right: 12px; font-size: 18px; }
+        .badge { background: var(--accent-red); color: #fff; font-size: 11px; padding: 2px 6px; border-radius: 10px; margin-left: auto; }
+
+        /* 右侧主内容区 */
+        .main-content { flex: 1; display: flex; flex-direction: column; overflow-y: auto; position: relative; }
+        .top-header { height: 70px; display: flex; justify-content: space-between; align-items: center; padding: 0 30px; border-bottom: 1px solid var(--border-color); background: rgba(11, 20, 38, 0.8); backdrop-filter: blur(10px); position: sticky; top: 0; z-index: 5; }
+        .page-title { font-size: 20px; font-weight: bold; letter-spacing: 1px; }
+        .header-right { display: flex; align-items: center; gap: 20px; font-size: 13px; color: var(--text-sub); }
+        .sync-status { display: flex; align-items: center; color: var(--accent-green); background: rgba(16, 185, 129, 0.1); padding: 6px 12px; border-radius: 20px; }
+        .dot { width: 8px; height: 8px; background: var(--accent-green); border-radius: 50%; margin-right: 8px; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 var(--accent-green-glow); } 70% { box-shadow: 0 0 0 6px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+        .pulse { animation: pulse 2s infinite; }
+        
+        .btn-mobile-preview { background: var(--accent-blue); color: #fff; border: none; padding: 6px 15px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-mobile-preview:hover { background: #2563eb; transform: scale(1.05); }
+
+        /* 页面切换与卡片基础 */
+        .page-container { padding: 24px 30px; display: none; animation: fadeIn 0.3s ease-out; }
+        .page-container.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .card { background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); margin-bottom: 20px; }
+        .card-title { font-size: 16px; font-weight: bold; margin-bottom: 16px; display: flex; align-items: center; }
+        .card-title::before { content: ''; display: inline-block; width: 4px; height: 16px; background: var(--accent-green); border-radius: 2px; margin-right: 10px; }
+
+        /* 页面1：监控大屏 */
+        .data-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+        .data-card { background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; }
+        .dc-value { font-size: 32px; font-weight: bold; font-family: monospace; color: #fff; margin: 10px 0; }
+        .dc-unit { font-size: 14px; color: var(--text-sub); }
+
+        /* 页面2：AI农事顾问 */
+        .config-bar { display: flex; gap: 20px; align-items: center; margin-bottom: 20px; background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px; }
+        .config-bar select, .config-bar input { background: var(--bg-dark); color: #fff; border: 1px solid var(--border-color); padding: 8px 12px; border-radius: 6px; outline: none; }
+        .ai-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 350px; background: linear-gradient(180deg, rgba(16,185,129,0.05) 0%, transparent 100%); border-radius: 12px; border: 1px dashed var(--accent-green); padding: 20px;}
+        .ai-report-box { width: 80%; background: rgba(0,0,0,0.3); padding: 20px; border-radius: 8px; font-size: 15px; line-height: 1.8; color: #e2e8f0; min-height: 150px; display: none; border-left: 4px solid var(--accent-green); white-space: pre-wrap; margin-top: 20px;}
+        .btn-primary { background: var(--accent-green); color: #fff; border: none; padding: 12px 30px; border-radius: 30px; font-size: 16px; cursor: pointer; transition: 0.3s; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 15px var(--accent-green-glow); }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px var(--accent-green-glow); }
+
+        /* 页面3：设备控制 */
+        .control-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        .control-card { background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; text-align: center; }
+        .control-icon { font-size: 48px; margin-bottom: 16px; }
+        .btn-control { width: 100%; padding: 15px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; transition: 0.3s; background: var(--accent-green); color: #fff; }
+        .btn-control.loading { background: #475569; cursor: not-allowed; color: #94a3b8; }
+        .btn-control.active { background: var(--accent-red); }
+
+        /* 模态框 */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 100; backdrop-filter: blur(4px); }
+        .modal-overlay.active { display: flex; }
+        .modal-content { background: var(--bg-card); padding: 30px; border-radius: 12px; width: 400px; text-align: center; border: 1px solid var(--border-color); }
+        .modal-btns { display: flex; gap: 15px; margin-top: 20px; }
+        .modal-btns button { flex: 1; padding: 10px; border-radius: 6px; border: none; cursor: pointer; font-size: 15px; }
+        .btn-cancel { background: rgba(255,255,255,0.1); color: #fff; }
+        .btn-confirm { background: var(--accent-green); color: #fff; }
+
+        /* 页面4：告警与复盘 */
+        .alert-list { display: flex; flex-direction: column; gap: 12px; }
+        .alert-item { display: flex; align-items: center; padding: 15px; background: rgba(239, 68, 68, 0.05); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px; color: #fca5a5; }
+        @keyframes alertBlink { 0% { background: rgba(239, 68, 68, 0.05); } 50% { background: rgba(239, 68, 68, 0.15); } 100% { background: rgba(239, 68, 68, 0.05); } }
+        .alert-item.blink { animation: alertBlink 1s infinite; }
+        .alert-icon { font-size: 24px; margin-right: 15px; }
+
+        /* 手机预览弹窗 */
+        .mobile-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; z-index: 200; backdrop-filter: blur(8px); }
+        .mobile-overlay.active { display: flex; }
+        .phone-frame { width: 320px; height: 650px; background: #f8fafc; border-radius: 40px; border: 10px solid #334155; position: relative; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+        .phone-header { background: #10b981; color: white; text-align: center; padding: 20px 10px 10px; font-weight: bold; font-size: 18px; border-radius: 30px 30px 0 0; }
+        .phone-content { flex: 1; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #333; text-align: center; }
+        .phone-icon { font-size: 80px; margin-bottom: 20px; }
+        .phone-advice { font-size: 20px; font-weight: bold; line-height: 1.5; margin-bottom: 30px; color: #1e293b; }
+        .phone-btn { background: #3b82f6; color: white; border: none; padding: 15px 40px; border-radius: 30px; font-size: 18px; font-weight: bold; width: 100%; cursor: pointer; }
+        .close-mobile { position: absolute; top: 15px; right: 20px; color: white; font-size: 24px; cursor: pointer; z-index: 10; }
+        
+        /* 鼠标拖尾 */
+        .mouse-trail { position: fixed; width: 10px; height: 10px; border-radius: 50%; background-color: var(--accent-green); pointer-events: none; z-index: 9999; box-shadow: 0 0 10px var(--accent-green); transition: transform 0.8s ease-out, opacity 0.8s ease-out; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="logo"><span>🌱</span> 智感云联</div>
+        <div class="menu-title">核心模式</div>
+        <div class="menu-item active" onclick="switchPage('dashboard', this)"><span class="icon">📊</span> 监控大屏</div>
+        <div class="menu-item" onclick="switchPage('ai-advisor', this)"><span class="icon">🤖</span> AI 农事顾问</div>
+        <div class="menu-item" onclick="switchPage('control', this)"><span class="icon">🎮</span> 设备控制</div>
+        <div class="menu-item" onclick="switchPage('alert', this)"><span class="icon">🚨</span> 告警与复盘 <span class="badge">2</span></div>
+    </div>
+
+    <div class="main-content">
+        <div class="top-header">
+            <div class="page-title" id="header-title">智慧农业环境实时可视化监测系统</div>
+            <div class="header-right">
+                <button class="btn-mobile-preview" onclick="openMobilePreview()">📱 手机端预览</button>
+                <div class="sync-status"><div class="dot pulse"></div> 数据实时同步中</div>
+                <div id="current-time">2026-10-27 10:30:00</div>
+            </div>
+        </div>
+
+        <div id="page-dashboard" class="page-container active">
+            <div class="data-cards">
+                <div class="data-card"><div>平均温度</div><div class="dc-value"><span id="val-temp">27.6</span><span class="dc-unit">℃</span></div></div>
+                <div class="data-card"><div>平均湿度</div><div class="dc-value"><span id="val-humi">68.2</span><span class="dc-unit">%RH</span></div></div>
+                <div class="data-card"><div>土壤水分</div><div class="dc-value"><span id="val-soil">45.5</span><span class="dc-unit">%</span></div></div>
+                <div class="data-card"><div>光照强度</div><div class="dc-value"><span id="val-light">25,340</span><span class="dc-unit">lx</span></div></div>
+            </div>
+            <div class="card" style="margin-top: 20px;">
+                <div class="card-title">实时环境趋势 (ECharts 渲染区)</div>
+                <div style="height: 200px; border: 1px dashed var(--text-sub); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-sub);">
+                    (此处后续接入真实 ECharts 折线图)
+                </div>
+            </div>
+        </div>
+
+        <div id="page-ai-advisor" class="page-container">
+            <div class="card">
+                <div class="card-title">模式一：准备模式 (周期检测与 AI 报告)</div>
+                <div class="config-bar">
+                    <label>自定义监测周期：</label>
+                    <select id="cycle-select" onchange="toggleCustomInput(this)">
+                        <option value="1小时">1小时 (快速测试)</option>
+                        <option value="12小时" selected>12小时 (标准周期)</option>
+                        <option value="24小时">24小时 (每日复盘)</option>
+                        <option value="custom">自定义...</option>
+                    </select>
+                    <input type="number" id="custom-hour-input" min="1" placeholder="输入小时" style="display: none; width: 100px;">
+                    <span style="color:var(--accent-green); font-size:12px;">✅ 周期结束后，后端将自动打包数据发给大模型</span>
+                </div>
+                <div class="ai-panel">
+                    <button class="btn-primary" id="btn-ai" onclick="generateAIReport()">
+                        <span>✨</span> 周期结束，立即生成报告
+                    </button>
+                    <div class="ai-report-box" id="ai-report-box"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="page-control" class="page-container">
+            <div class="card">
+                <div class="card-title">模式三：操作者模式 (物理执行与防抖)</div>
+                <p style="color: var(--text-sub); margin-bottom: 20px;">安全提示：物理设备控制指令需二次确认，且防抖锁定 2 秒。</p>
+                <div class="control-grid">
+                    <div class="control-card">
+                        <div class="control-icon">💧</div>
+                        <h3>微型水泵</h3>
+                        <p style="color: var(--text-sub); font-size: 12px; margin-bottom: 15px;">状态：<span id="pump-status-text">已关闭</span></p>
+                        <button class="btn-control" id="btn-pump" onclick="requestPumpToggle()">一键抽水灌溉</button>
+                    </div>
+                    <div class="control-card" style="opacity: 0.6;">
+                        <div class="control-icon">🌀</div>
+                        <h3>通风卷帘机</h3>
+                        <p style="color: var(--text-sub); font-size: 12px; margin-bottom: 15px;">状态：<span style="color:var(--accent-blue);">预留 API 接口</span></p>
+                        <button class="btn-control" disabled style="background: #334155; cursor: not-allowed;">暂未接入</button>
+                    </div>
+                    <div class="control-card" style="opacity: 0.6;">
+                        <div class="control-icon">🌬️</div>
+                        <h3>排风扇</h3>
+                        <p style="color: var(--text-sub); font-size: 12px; margin-bottom: 15px;">状态：<span style="color:var(--accent-blue);">预留 API 接口</span></p>
+                        <button class="btn-control" disabled style="background: #334155; cursor: not-allowed;">暂未接入</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="page-alert" class="page-container">
+            <div class="card">
+                <div class="card-title" style="color: var(--accent-red);">模式二：无人预警模式 (多端触达)</div>
+                <div style="background: rgba(16,185,129,0.1); color: var(--accent-green); padding: 10px 15px; border-radius: 6px; margin-bottom: 20px; display: inline-block;">
+                    ✅ 微信小程序订阅消息已绑定，危险情况将直接推送到农户手机
+                </div>
+                <div class="alert-list">
+                    <div class="alert-item blink">
+                        <div class="alert-icon">⚠️</div>
+                        <div>
+                            <div style="font-weight: bold; margin-bottom: 4px;">硬核阈值报警：土壤极度干旱</div>
+                            <div style="font-size: 12px; opacity: 0.8;">当前水分 15%，低于安全阈值 20%。系统已自动记录，请立即手动开启水泵。</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="control-modal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 10px;">⚠️ 安全确认</h2>
+            <p style="color: var(--text-sub); font-size: 14px;">确定要下发指令操作物理水泵吗？</p>
+            <div class="modal-btns">
+                <button class="btn-cancel" onclick="closeModal()">取消</button>
+                <button class="btn-confirm" onclick="executePump()">确认执行</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="mobile-overlay" id="mobile-modal">
+        <div class="phone-frame">
+            <div class="close-mobile" onclick="closeMobilePreview()">×</div>
+            <div class="phone-header">智感云联 (农户端)</div>
+            <div class="phone-content">
+                <div class="phone-icon" id="phone-icon-el">😊</div>
+                <div class="phone-advice" id="mobile-advice">
+                    当前大棚环境舒适，<br>无需操作。
+                </div>
+                <button class="phone-btn" onclick="closeMobilePreview()">我已知晓</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = { USE_MOCK: true, BASE_URL: 'http://127.0.0.1:5000' };
+
+        async function requestAPI(endpoint, method = 'GET', data = null) {
+            if (CONFIG.USE_MOCK) {
+                return new Promise((resolve) => {
+                    setTimeout(() => { 
+                        if (endpoint.includes('/sensor/current')) {
+                            resolve({ code: 200, data: { temp: (26 + Math.random() * 3).toFixed(1), humi: (65 + Math.random() * 7).toFixed(1), soil: (40 + Math.random() * 10).toFixed(1), light: Math.floor(24000 + Math.random() * 2000) } });
+                        } else if (endpoint.includes('/device/pump')) {
+                            resolve({ code: 200, msg: "控制成功" });
+                        } else if (endpoint.includes('/ai/report')) {
+                            let cycleValue = document.getElementById('cycle-select').value;
+                            if (cycleValue === 'custom') {
+                                const customInput = document.getElementById('custom-hour-input').value;
+                                cycleValue = (customInput && customInput > 0) ? `${customInput}小时` : "未填写时间"; 
+                            }
+                            const t = document.getElementById('val-temp').innerText;
+                            const h = document.getElementById('val-humi').innerText;
+                            const s = document.getElementById('val-soil').innerText;
+                            let report = `【智感云联 AI 诊断报告】\n农户您好，本次 ${cycleValue} 监测周期已结束。\n\n数据打包情况如下：\n- 平均温度：${t}℃\n- 平均湿度：${h}%\n- 土壤水分：${s}%\n\n【AI 大白话建议】\n当前整体环境适宜，但土壤水分略微偏低。结合气象预测，未来两小时无降雨，建议您及时开启抽水灌溉，避免作物根系缺水。`;
+                            resolve({ code: 200, data: { report: report } });
+                        }
+                    }, 800); 
+                });
+            }
+            return { code: 200, data: {} }; 
+        }
+
+        function switchPage(pageId, element) {
+            document.querySelectorAll('.page-container').forEach(page => page.classList.remove('active'));
+            document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
+            document.getElementById('page-' + pageId).classList.add('active');
+            element.classList.add('active');
+            const titles = { 'dashboard': '监控大屏', 'ai-advisor': '准备模式：AI 农事顾问', 'control': '操作者模式：设备控制中心', 'alert': '无人预警模式' };
+            document.getElementById('header-title').innerText = titles[pageId];
+        }
+
+        setInterval(async () => {
+            const res = await requestAPI('/api/sensor/current');
+            if (res.code === 200) {
+                document.getElementById('val-temp').innerText = res.data.temp;
+                document.getElementById('val-humi').innerText = res.data.humi;
+                document.getElementById('val-soil').innerText = res.data.soil;
+                document.getElementById('val-light').innerText = res.data.light;
+            }
+        }, 3000);
+
+        function toggleCustomInput(select) {
+            const input = document.getElementById('custom-hour-input');
+            if (select.value === 'custom') { input.style.display = 'inline-block'; input.focus(); } 
+            else { input.style.display = 'none'; input.value = ''; }
+        }
+
+        async function generateAIReport() {
+            const btn = document.getElementById('btn-ai');
+            const box = document.getElementById('ai-report-box');
+            
+            btn.style.display = 'none'; 
+            box.style.display = 'block'; 
+            box.innerText = '周期结束，正在打包数据发送给大模型...';
+            
+            try {
+                const res = await requestAPI('/api/ai/report');
+                box.innerText = '';
+                const reportText = res.data.report;
+                let i = 0;
+                const timer = setInterval(() => {
+                    if (i < reportText.length) {
+                        box.innerText += reportText.charAt(i); 
+                        i++;
+                    } else {
+                        clearInterval(timer); 
+                        btn.style.display = 'flex'; 
+                        btn.innerText = '重新生成报告'; 
+                    }
+                }, 50); 
+            } catch (error) {
+                box.innerText = '生成失败，请检查网络。';
+                btn.style.display = 'flex'; 
+                btn.innerText = '重试';
+            }
+        }
+
+        function openMobilePreview() {
+            const soilVal = parseFloat(document.getElementById('val-soil').innerText);
+            const adviceEl = document.getElementById('mobile-advice');
+            const iconEl = document.getElementById('phone-icon-el');
+            if (soilVal < 45) { adviceEl.innerHTML = "当前土壤偏干，<br>建议马上抽水灌溉。"; iconEl.innerText = "😟"; } 
+            else { adviceEl.innerHTML = "当前大棚环境舒适，<br>无需操作。"; iconEl.innerText = "😊"; }
+            document.getElementById('mobile-modal').classList.add('active');
+        }
+        function closeMobilePreview() { document.getElementById('mobile-modal').classList.remove('active'); }
+
+        let isPumpOn = false, isProcessing = false;
+        function requestPumpToggle() { if (!isProcessing) document.getElementById('control-modal').classList.add('active'); }
+        function closeModal() { document.getElementById('control-modal').classList.remove('active'); }
+        
+        async function executePump() {
+            closeModal();
+            const btn = document.getElementById('btn-pump');
+            const statusText = document.getElementById('pump-status-text');
+            isProcessing = true; 
+            btn.className = 'btn-control loading'; btn.innerText = '指令下发中...';
+            await new Promise(r => setTimeout(r, 1500));
+            isPumpOn = !isPumpOn;
+            if (isPumpOn) {
+                btn.className = 'btn-control active'; btn.innerText = '关闭水泵';
+                statusText.innerText = '运行中 (已开启)'; statusText.style.color = 'var(--accent-red)';
+            } else {
+                btn.className = 'btn-control'; btn.innerText = '一键抽水灌溉';
+                statusText.innerText = '已关闭'; statusText.style.color = 'inherit';
+            }
+            isProcessing = false;
+        }
+
+        setInterval(() => { document.getElementById('current-time').innerText = new Date().toLocaleString('zh-CN', { hour12: false }); }, 1000);
+
+        document.addEventListener('mousemove', function(e) {
+            if (Math.random() > 0.3) return;
+            const trail = document.createElement('div');
+            trail.className = 'mouse-trail';
+            trail.style.left = e.clientX + 'px'; trail.style.top = e.clientY + 'px';
+            document.body.appendChild(trail);
+            requestAnimationFrame(() => { trail.style.transform = `translate(${(Math.random()-0.5)*40}px, ${(Math.random()-0.5)*40}px) scale(0)`; trail.style.opacity = '0'; });
+            setTimeout(() => { if (trail.parentNode) trail.parentNode.removeChild(trail); }, 800);
+        });
+    </script>
+</body>
+</html>
