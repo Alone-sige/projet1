@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang=  "zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070d19">
+<title>智感云联 · 农业全生命周期管家</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ======== 启动页（等待首帧数据，不再用固定 2.2s 骗人） ======== -->
+<div id="splash">
+  <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+    <circle cx="12" cy="13" r="2" fill="var(--green)"/>
+    <path d="M12 10.5V7M14 13h3M10 13H7"/>
+  </svg>
+  <div class="splash-title">智感云联</div>
+  <div class="splash-sub">AGRICULTURE LIFECYCLE OS</div>
+  <div class="splash-bar"><i></i></div>
+  <div class="splash-tip" id="splash-tip">正在握手边缘网关…</div>
+</div>
+
+<canvas id="trail"></canvas>
+
+<div class="app">
+  <!-- ======== 侧边导航 ======== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>
+        <circle cx="12" cy="13" r="2" fill="var(--green)"/>
+        <path d="M12 10.5V7M14 13h3M10 13H7"/>
+      </svg>
+      智感云联 <em>v2.0</em>
+    </div>
+
+    <div class="nav-label">核心模式</div>
+    <button class="nav-item active" data-page="dashboard">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+      监控大屏
+    </button>
+    <button class="nav-item" data-page="control">
+      <svg viewBox="0 0 24 24"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+      设备控制
+    </button>
+    <button class="nav-item" data-page="advisor">
+      <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+      AI 农事顾问
+    </button>
+    <button class="nav-item" data-page="alert">
+      <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      告警与复盘 <span class="nav-badge" id="nav-badge" hidden>0</span>
+    </button>
+
+    <div class="sidebar-foot">
+      棚区：<b id="foot-plot">1号棚</b><br>
+      For Chains 工作室
+    </div>
+  </aside>
+
+  <!-- ======== 主区 ======== -->
+  <main class="main">
+    <header class="topbar">
+      <div class="tb-left">
+        <div class="page-title" id="page-title">实时环境监测大屏</div>
+        <div class="page-sub" id="page-sub">ESP32 边缘节点 · MQTT 双向链路</div>
+      </div>
+      <div class="tb-right">
+        <select class="tb-select" id="plot-select" title="切换棚区">
+          <option value="A">1号棚 · 番茄</option>
+          <option value="B">2号棚 · 草莓</option>
+        </select>
+        <select class="tb-select" id="sim-mode" title="故障演练">
+          <option value="normal">演练：正常</option>
+          <option value="drought">演练：土壤干旱</option>
+          <option value="offline">演练：断网</option>
+          <option value="noack">演练：设备无回执</option>
+        </select>
+        <button class="ghost-btn" id="btn-export">导出 CSV</button>
+        <div class="link-pill" id="link-pill"><i></i><span id="link-text">链路正常</span></div>
+        <div class="clock" id="clock">--:--:--</div>
+      </div>
+    </header>
+
+    <div class="offline-banner" id="offline-banner">
+      <span>⚠</span>
+      <div><b>链路中断</b> · <span id="offline-text">已停止接收遥测，控制指令被安全拦截</span></div>
+      <div class="spacer"></div>
+      <button class="ghost-btn" id="offline-act" style="display:none">确认暂存指令</button>
+    </div>
+
+    <div class="pages">
+
+      <!-- ================= 1. 监控大屏 ================= -->
+      <section class="page active" id="page-dashboard">
+        <div class="kpi-grid" id="kpi-grid"></div>
+
+        <div class="dash-grid">
+          <div class="card">
+            <div class="card-h">
+              实时环境趋势 <span class="sub" id="chart-sub">采样 1Hz · 近 2 分钟</span>
+              <div class="spacer"></div>
+              <div class="legend">
+                <span><i style="background:#10b981"></i>土壤水分</span>
+                <span><i style="background:#3b82f6"></i>空气湿度</span>
+                <span><i style="background:#f59e0b"></i>温度</span>
+              </div>
+            </div>
+            <div class="chart-wrap">
+              <canvas id="trend"></canvas>
+              <div class="chart-tip" id="chart-tip"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h">设备影子 <span class="sub">Device Shadow</span></div>
+            <div class="shadow-state" id="shadow-state"><span class="dot"></span><span>已关闭</span></div>
+            <div class="shadow-sub" id="shadow-sub">等待设备上报…</div>
+
+            <div class="lifecycle" id="lifecycle">
+              <div class="step"><span class="node"></span>指令下发 (REST)</div>
+              <div class="step"><span class="node"></span>网关路由 (MQTT)</div>
+              <div class="step"><span class="node"></span>设备执行 (Relay)</div>
+              <div class="step"><span class="node"></span>回执确认 (Ack)</div>
+            </div>
+
+            <div class="meta-list">
+              <div class="meta-row"><span>最后变更</span><b id="shadow-since">—</b></div>
+              <div class="meta-row"><span>指令往返</span><b id="shadow-latency">—</b></div>
+              <div class="meta-row"><span>本次运行</span><b id="shadow-runtime">—</b></div>
+              <div class="meta-row"><span>累计用水</span><b id="shadow-water">0 L</b></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <div class="card-h">
+            作物生长周期 <span class="sub" id="stage-plot">1号棚 · 番茄</span>
+            <div class="spacer"></div>
+            <span class="chip" id="stage-day">第 0 天</span>
+          </div>
+          <div class="stage-head">
+            <div class="stage-name" id="stage-name">—</div>
+          </div>
+          <div class="stage-track" id="stage-track"></div>
+          <div class="stage-tip" id="stage-tip">—</div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <div class="card-h">运行概览 <span class="sub">Runtime Health</span></div>
+          <div class="ov-grid">
+            <div class="ov"><span>采样吞吐</span><b id="ov-rate">1.0 Hz</b><i>单节点 · 秒级</i></div>
+            <div class="ov"><span>链路时延</span><b id="ov-rtt">— ms</b><i>REST 往返</i></div>
+            <div class="ov"><span>指令成功率</span><b id="ov-ok">—</b><i>近 40 条流水</i></div>
+            <div class="ov"><span>累计用水</span><b id="ov-water">0.00 L</b><i>本次会话</i></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 2. 设备控制 ================= -->
+      <section class="page" id="page-control">
+        <div class="ctrl-grid">
+          <div class="card pump-card">
+            <div class="card-h" style="align-self:flex-start">模式三 · 操作者模式</div>
+            <div class="pump-ring">
+              <svg width="150" height="150" viewBox="0 0 150 150">
+                <circle class="bg" cx="75" cy="75" r="66"/>
+                <circle class="fg off" id="pump-ring-fg" cx="75" cy="75" r="66"/>
+              </svg>
+              <div class="center">
+                <b id="pump-ring-text">00:00</b>
+                <span>单次运行 / 上限 5min</span>
+              </div>
+            </div>
+            <div class="pump-status" id="pump-status">已关闭</div>
+            <div class="pump-sub" id="pump-sub">继电器断开 · 无电流</div>
+            <button class="btn-primary" id="btn-pump">💧 一键抽水灌溉</button>
+            <button class="btn-danger" id="btn-estop">紧急停止（断继电器）</button>
+            <div class="cooldown-hint" id="cooldown-hint"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-h">自动化策略 <span class="sub">本地规则引擎 · 断网也可执行</span></div>
+            <div class="rules" id="rules-list"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h">指令审计 <span class="sub">仅明文记录，不上传第三方</span><div class="spacer"></div><span class="sub" id="audit-count"></span></div>
+          <div class="audit" id="audit-list"></div>
+        </div>
+      </section>
+
+      <!-- ================= 3. AI 顾问 ================= -->
+      <section class="page" id="page-advisor">
+        <div class="card">
+          <div class="card-h">模式一 · 准备模式</div>
+          <div class="config-bar">
+            <label>监测周期</label>
+            <select id="cycle-select">
+              <option value="1小时">1 小时（快速测试）</option>
+              <option value="12小时" selected>12 小时（标准）</option>
+              <option value="24小时">24 小时（每日复盘）</option>
+              <option value="custom">自定义…</option>
+            </select>
+            <input type="number" id="custom-hour" min="1" max="168" placeholder="小时" style="display:none;width:88px">
+            <span style="color:var(--green2);font-size:11.5px">✅ 周期结束后自动打包结构化数据 → 大模型</span>
+          </div>
+
+          <div class="ov-grid" style="margin-bottom:16px">
+            <div class="ov"><span>已采样</span><b id="ai-samples">0</b><i>条 · 1Hz 环形缓冲</i></div>
+            <div class="ov"><span>时间窗</span><b id="ai-window">—</b><i>起始时刻</i></div>
+            <div class="ov"><span>土壤均值</span><b id="ai-soil">—</b><i>临界值 22%</i></div>
+            <div class="ov"><span>生育期</span><b id="ai-stage" style="font-size:15px">—</b><i>影响建议权重</i></div>
+          </div>
+
+          <div class="ai-panel">
+            <button class="btn-primary" id="btn-ai">✨ 周期结束，立即生成诊断报告</button>
+            <div class="report-box" id="report-box"></div>
+            <div style="width:100%">
+              <div class="payload-toggle" id="payload-toggle">▸ 查看本周期实际发送给大模型的 Payload（可解释性）</div>
+              <pre class="payload-box" id="payload-box"></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= 4. 告警与复盘 ================= -->
+      <section class="page" id="page-alert">
+        <div class="card">
+          <div class="card-h">
+            模式二 · 无人预警模式
+            <div class="spacer"></div>
+            <span class="chip" id="voice-chip">🔊 语音播报已开启</span>
+          </div>
+          <div class="alert-list" id="alert-list"></div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <div class="card-h">告警策略矩阵 <span class="sub">阈值可配置 · 前端只做展示，判定在后端</span></div>
+          <div class="matrix">
+            <div class="mh">触发条件</div><div class="mh">级别</div><div class="mh">触达方式</div><div class="mh">自动动作</div>
+
+            <div>土壤水分 &lt; 22%</div><div><span class="pill fail">严重</span></div><div>大屏声光 + 语音 + 订阅消息</div><div>规则 r1 自动灌溉 120s</div>
+            <div>土壤水分 22% ~ 26%</div><div><span class="pill wait">警告</span></div><div>大屏提示</div><div>仅记录，不动作</div>
+            <div>气温 &gt; 34℃</div><div><span class="pill wait">警告</span></div><div>大屏提示</div><div>规则 r2 强制停灌</div>
+            <div>链路中断 &gt; 5s</div><div><span class="pill fail">严重</span></div><div>大屏横幅 + 语音</div><div>锁定控制，禁止下发</div>
+            <div>单次运行 &gt; 5min</div><div><span class="pill wait">警告</span></div><div>大屏提示</div><div>规则 r4 强制断电</div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <div class="card-h">多端触达链路 <span class="sub">三级回退，确保农户一定收到</span></div>
+          <div class="meta-list" style="border-top:none;padding-top:0">
+            <div class="meta-row"><span>① 大屏声光 + 语音播报</span><b style="color:var(--green2)">已就绪</b></div>
+            <div class="meta-row"><span>② 微信小程序订阅消息</span><b style="color:var(--green2)">已授权 1/3 次</b></div>
+            <div class="meta-row"><span>③ 短信 / 电话（超 30min 未处理）</span><b style="color:var(--amber)">待接入</b></div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- ======== 安全确认弹窗 ======== -->
+<div class="modal" id="modal">
+  <div class="modal-box">
+    <h3 id="modal-title">安全确认</h3>
+    <p id="modal-desc"></p>
+    <div class="modal-btns">
+      <button id="modal-cancel">取消</button>
+      <button id="modal-ok">确认执行</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script src="core.js"></script>
+<script src="ui.js"></script>
+       <!-- ================= 可折叠演练控制台 ================= -->
+    <!-- 1. 完整的控制台面板 (默认显示) -->
+    <div id="dev-panel" style="position: fixed; bottom: 20px; right: 20px; background: rgba(15, 23, 42, 0.95); border: 1px solid #ef4444; padding: 15px; border-radius: 8px; z-index: 99999; width: 220px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+        
+        <!-- 控制台标题栏与关闭按钮 -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div style="color: #fff; font-size: 13px; font-weight: bold;">⚙️ 演练控制台</div>
+            <!-- 点击 × 隐藏面板 -->
+            <div onclick="toggleDevPanel(false)" style="color: #ef4444; cursor: pointer; font-size: 20px; line-height: 1; font-weight: bold;" title="收起面板">×</div>
+        </div>
+
+        <!-- 按钮组 -->
+        <button onclick="simulateFault('none')" style="padding: 6px; font-size: 12px; margin-bottom: 5px; width: 100%; cursor:pointer;">✅ 恢复全部正常</button>
+        <button onclick="simulateFault('offline')" style="padding: 6px; font-size: 12px; margin-bottom: 5px; width: 100%; cursor:pointer; background:#ef4444; color:#fff; border:none;">🚨 触发：心跳掉线</button>
+        <button onclick="simulateFault('low_power')" style="padding: 6px; font-size: 12px; margin-bottom: 5px; width: 100%; cursor:pointer; background:#f59e0b; color:#fff; border:none;">⚠️ 触发：电池低压</button>
+        <button onclick="simulateFault('no_water')" style="padding: 6px; font-size: 12px; margin-bottom: 5px; width: 100%; cursor:pointer; background:#3b82f6; color:#fff; border:none;">💧 触发：无水禁泵</button>
+        <button onclick="simulateFault('dirty_data')" style="padding: 6px; font-size: 12px; width: 100%; cursor:pointer; background:#64748b; color:#fff; border:none;">📉 触发：传感器脏数据</button>
+    </div>
+
+    <!-- 2. 悬浮的齿轮小图标 (默认隐藏) -->
+    <div id="dev-toggle" onclick="toggleDevPanel(true)" style="position: fixed; bottom: 20px; right: 20px; background: rgba(15, 23, 42, 0.9); border: 1px solid #ef4444; padding: 10px; border-radius: 50%; cursor: pointer; z-index: 99999; display: none; box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);" title="展开控制台">
+        ⚙️
+    </div>
+        <!-- 2. 悬浮的齿轮小图标 (默认隐藏) -->
+    <div id="dev-toggle" onclick="toggleDevPanel(true)" style="position: fixed; bottom: 20px; right: 20px; background: rgba(15, 23, 42, 0.9); border: 1px solid #ef4444; padding: 10px; border-radius: 50%; cursor: pointer; z-index: 99999; display: none; box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);" title="展开控制台">
+        ⚙️
+    </div>
+
+    <!-- 👇👇👇 把这段全新的 <script> 粘贴在这里，放在 </body> 的上面 👇👇👇 -->
+    <script>
+        // 1. 控制面板的显示与隐藏
+        window.toggleDevPanel = function(show) {
+            const panel = document.getElementById('dev-panel');
+            const toggle = document.getElementById('dev-toggle');
+            
+            if (show) {
+                panel.style.display = 'block';
+                toggle.style.display = 'none';
+            } else {
+                panel.style.display = 'none';
+                toggle.style.display = 'block';
+            }
+        };
+
+        // 2. 辅助函数：查找并锁定/解锁底层的抽水按钮
+        function lockPumpButtons(isLock) {
+            const buttons = Array.from(document.querySelectorAll('button'));
+            const pumpBtns = buttons.filter(btn => 
+                btn.innerText.includes('抽水') || 
+                btn.innerText.includes('水泵') || 
+                btn.innerText.includes('灌溉')
+            );
+            
+            pumpBtns.forEach(btn => {
+                btn.disabled = isLock;
+                if (isLock) {
+                    btn.style.opacity = '0.3';
+                    btn.style.pointerEvents = 'none';
+                    btn.style.filter = 'grayscale(100%)';
+                } else {
+                    btn.style.opacity = '1';
+                    btn.style.pointerEvents = 'auto';
+                    btn.style.filter = 'none';
+                }
+            });
+        }
+
+        // 3. 核心：故障演练控制逻辑
+        window.simulateFault = function(type) {
+            // 每次点击先关掉可能存在的旧遮罩
+            let existingMask = document.getElementById('fault-mask');
+            if (existingMask) existingMask.remove();
+
+            if (type === 'none') {
+                lockPumpButtons(false); // 恢复时解锁按钮
+                alert("✅ 系统已恢复正常运行！");
+                return;
+            }
+
+            lockPumpButtons(true); // 发生故障，瞬间锁死按钮
+
+            const mask = document.createElement('div');
+            mask.id = 'fault-mask';
+            mask.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:999999; display:flex; justify-content:center; align-items:center; flex-direction:column; backdrop-filter: blur(8px); transition: all 0.3s;';
+
+            let title = "";
+            let desc = "";
+            let color = "";
+            
+            if (type === 'offline') {
+                color = 'rgba(239, 68, 68, 0.4)';
+                title = "🚨 通讯链路中断";
+                desc = "心跳丢失 > 90s，设备已离线，控制功能已锁定！";
+            } else if (type === 'low_power') {
+                color = 'rgba(245, 158, 11, 0.4)';
+                title = "⚠️ 电池电压过低";
+                desc = "当前电压 < 10.5V，系统已拒绝启动水泵！";
+            } else if (type === 'no_water') {
+                color = 'rgba(59, 130, 246, 0.4)';
+                title = "💧 无水禁泵保护";
+                desc = "当前水位低于安全阈值，已拒绝开泵，防止干烧！";
+            } else if (type === 'dirty_data') {
+                color = 'rgba(100, 116, 139, 0.6)';
+                title = "📉 传感器数据异常";
+                desc = "连续3次读取异常，该节点已标记为 Invalid，不参与诊断。";
+            }
+
+            mask.style.background = color;
+            mask.innerHTML = `
+                <div style="background: rgba(15, 23, 42, 0.95); border: 2px solid #ef4444; padding: 40px 60px; border-radius: 20px; text-align: center; box-shadow: 0 0 50px rgba(239,68,68,0.5);">
+                    <h1 style="color: #fff; font-size: 36px; margin-bottom: 20px;">${title}</h1>
+                    <p style="color: #cbd5e1; font-size: 20px; margin-bottom: 30px;">${desc}</p>
+                    <button onclick="document.getElementById('fault-mask').style.display='none'" style="padding: 12px 30px; font-size: 18px; border-radius: 8px; background: #3b82f6; color: #fff; border: none; cursor: pointer;">我知道了 (按钮已锁死)</button>
+                </div>
+            `;
+
+            document.body.appendChild(mask);
+        };
+    </script>
+    <!-- 👆👆👆 代码结束 👆👆👆 -->
+
+</body>
+</html>
+</body>
+</html>
